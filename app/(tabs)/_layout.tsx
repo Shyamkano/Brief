@@ -1,6 +1,8 @@
 import { Tabs } from "expo-router";
 import { Bookmark, Home, Settings, ShieldCheck } from "lucide-react-native";
 import { useAppContext } from "../../hooks/useAppContext";
+import { BlurView } from "expo-blur";
+import { Platform } from "react-native";
 
 export default function TabLayout() {
   const { isDark } = useAppContext();
@@ -9,17 +11,27 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: "#0047FF",
-        tabBarInactiveTintColor: isDark ? "#555" : "#8E8E93",
+        tabBarInactiveTintColor: isDark ? "#888" : "#8E8E93",
         tabBarStyle: {
-          backgroundColor: isDark ? "#121212" : "#FFFFFF",
-          borderTopWidth: 1,
-          borderTopColor: isDark ? "#333" : "#E5E5EA",
-          height: 60,
-          paddingBottom: 8,
+          position: 'absolute',
+          backgroundColor: isDark ? "rgba(18, 18, 18, 0.6)" : "rgba(255, 255, 255, 0.6)",
+          borderTopWidth: 0,
+          height: Platform.OS === 'ios' ? 88 : 65,
+          paddingTop: 10,
+          elevation: 0,
         },
+        tabBarBackground: () => (
+          <BlurView 
+            intensity={isDark ? 30 : 80} 
+            tint={isDark ? "dark" : "light"} 
+            style={{ flex: 1 }} 
+          />
+        ),
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
+          fontSize: 10,
+          fontWeight: "800",
+          letterSpacing: 0.5,
+          marginBottom: Platform.OS === 'ios' ? 0 : 8,
         },
         headerStyle: {
           backgroundColor: isDark ? "#121212" : "#FFFFFF",

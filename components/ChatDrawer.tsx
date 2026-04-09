@@ -11,9 +11,23 @@ import {
   ActivityIndicator,
   Modal,
 } from "react-native";
-import { Send, X, Bot, Sparkles } from "lucide-react-native";
+import { Send, X, Bot, Sparkles, MessageSquare } from "lucide-react-native";
 import { getChatResponse } from "../services/ai-service";
 import { useAppContext } from "../hooks/useAppContext";
+import * as Haptics from "expo-haptics";
+import Animated, { 
+  FadeInUp, 
+  FadeOutDown, 
+  Layout, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withSequence, 
+  withTiming,
+  useSharedValue,
+  withSpring
+} from "react-native-reanimated";
+import { BlurView } from "expo-blur";
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface Message {
   id: string;
@@ -55,9 +69,11 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
       const response = await getChatResponse(inputText, `Title: ${articleTitle}\nContent: ${articleContent}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMessages((prev) => [...prev, {
         id: (Date.now() + 1).toString(),
         text: response,
@@ -74,12 +90,53 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
 
-  const bg = isDark ? "#121212" : "white";
-  const cardBg = isDark ? "#1A1A1A" : "#F2F2F7";
-  const borderColor = isDark ? "#333" : "#F2F2F7";
+  const animatedScale = useSharedValue(1);
+  const sendBtnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(inputText.trim() ? 1 : 0.8) }],
+    opacity: withTiming(inputText.trim() ? 1 : 0.6)
+  }));
+
+  const bg = isDark ? "rgba(18, 18, 18, 0.75)" : "rgba(255, 255, 255, 0.75)";
+  const cardBg = isDark ? "rgba(42, 42, 42, 0.6)" : "rgba(242, 242, 247, 0.8)";
+  const borderColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)";
   const textColor = isDark ? "white" : "#1A1A1A";
-  const subColor = isDark ? "#888" : "#8E8E93";
-  const inputBg = isDark ? "#2A2A2A" : "#F8F8F8";
+  const subColor = isDark ? "#A0A0A0" : "#8E8E93";
+  const inputBg = isDark ? "#2A2A2A" : "#F2F2F7";
+
+  const TypingIndicator = () => (
+    <Animated.View 
+      entering={FadeInUp.springify()} 
+      style={[styles.messageBubble, styles.aiBubble, { backgroundColor: cardBg, width: 80, justifyContent: 'center' }]}
+    >
+      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+        {[0, 1, 2].map((i) => (
+          <Dot key={i} delay={i * 200} />
+        ))}
+      </View>
+    </Animated.View>
+  );
+
+  const Dot = ({ delay }: { delay: number }) => {
+    const opacity = useSharedValue(0.4);
+    
+    useEffect(() => {
+      opacity.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 450 }),
+          withTiming(0.4, { duration: 450 })
+        ),
+        -1,
+        true
+      );
+    }, []);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+      opacity: opacity.value,
+      transform: [{ scale: withSpring(opacity.value + 0.2) }]
+    }));
+
+    return <Animated.View style={[styles.dot, animatedStyle]} />;
+  };
 
   return (
     <Modal
@@ -87,12 +144,18 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        <BlurView
+          intensity={Platform.OS === 'ios' ? 70 : 85}
+          tint={isDark ? "dark" : "light"}
           style={[styles.container, { backgroundColor: bg }]}
         >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
           {/* Handle bar */}
           <View style={styles.handleBar}>
             <View style={[styles.handle, isDark && { backgroundColor: "#444" }]} />
@@ -121,10 +184,13 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
             ref={scrollViewRef}
             style={styles.messagesList}
             contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
           >
-            {messages.map((msg) => (
-              <View
+            {messages.map((msg, index) => (
+              <Animated.View
                 key={msg.id}
+                entering={FadeInUp.delay(index * 50).springify()}
+                layout={Layout.springify()}
                 style={[
                   styles.messageBubble,
                   msg.sender === "user"
@@ -137,17 +203,13 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
                 )}
                 <Text style={[
                   styles.messageText,
-                  msg.sender === "user" ? styles.userText : { color: textColor }
+                  msg.sender === "user" ? styles.userText : [styles.aiText, { color: textColor }]
                 ]}>
                   {msg.text}
                 </Text>
-              </View>
+              </Animated.View>
             ))}
-            {loading && (
-              <View style={[styles.messageBubble, styles.aiBubble, { backgroundColor: cardBg }]}>
-                <ActivityIndicator size="small" color="#0047FF" />
-              </View>
-            )}
+            {loading && <TypingIndicator />}
           </ScrollView>
 
           {/* Input */}
@@ -159,29 +221,32 @@ export default function ChatDrawer({ isVisible, onClose, articleTitle, articleCo
               value={inputText}
               onChangeText={setInputText}
               multiline
+              blurOnSubmit={true}
               onSubmitEditing={handleSend}
+              returnKeyType="send"
             />
-            <TouchableOpacity
-              style={[styles.sendBtn, !inputText.trim() && styles.disabledSend]}
+            <AnimatedTouchableOpacity
+              style={[styles.sendBtn, !inputText.trim() && styles.disabledSend, sendBtnStyle]}
               onPress={handleSend}
               disabled={!inputText.trim()}
             >
               <Send size={20} color="white" />
-            </TouchableOpacity>
+            </AnimatedTouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </BlurView>
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   container: {
     height: "82%",
     width: "100%",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
@@ -189,6 +254,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 20,
   },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#0047FF" },
   handleBar: { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
   handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#D1D1D6" },
   header: {
@@ -207,9 +273,26 @@ const styles = StyleSheet.create({
   messagesContent: { padding: 20, paddingBottom: 40 },
   messageBubble: { padding: 14, borderRadius: 20, marginBottom: 12, maxWidth: "85%" },
   userBubble: { alignSelf: "flex-end", backgroundColor: "#0047FF", borderBottomRightRadius: 4 },
-  aiBubble: { alignSelf: "flex-start", borderBottomLeftRadius: 4, flexDirection: "row", gap: 8 },
-  messageText: { fontSize: 15, lineHeight: 22, flexShrink: 1 },
-  userText: { color: "white", fontWeight: "500" },
+  aiBubble: { 
+    alignSelf: "flex-start", 
+    borderBottomLeftRadius: 4, 
+    flexDirection: "row", 
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 71, 255, 0.1)',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  messageText: { fontSize: 16, lineHeight: 24, flexShrink: 1 },
+  userText: { color: "white", fontWeight: "600" },
+  aiText: { 
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '500',
+    letterSpacing: -0.2
+  },
   inputArea: {
     padding: 16,
     paddingBottom: Platform.OS === "ios" ? 32 : 16,

@@ -24,13 +24,16 @@ import {
     Text,
     TouchableOpacity,
     View,
-    Share
+    Share,
+    Platform
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getDeepAnalysis, DeepAnalysisResult } from "../services/ai-service";
 import { useBookmarks } from "../hooks/useBookmarks";
 import { useAppContext, t } from "../hooks/useAppContext";
 import ChatDrawer from "../components/ChatDrawer";
+import { BlurView } from "expo-blur";
+import Animated, { FadeInUp, FadeIn } from "react-native-reanimated";
 
 const { width } = Dimensions.get("window");
 
@@ -136,7 +139,12 @@ export default function DetailsScreen() {
                   <TouchableOpacity style={styles.chatBadge} onPress={() => setShowChat(true)}><MessageSquare size={12} color="white" /><Text style={styles.chatBadgeText}>{t('askAI', language)}</Text></TouchableOpacity>
                 </View>
                 {analysis.summary.map((p, i) => (
-                  <View key={i} style={styles.bulletRow}><Text style={styles.bullet}>•</Text><Text style={[styles.bulletContent, isDark && { color: "#BBB" }, { fontSize }]}>{p.replace("•", "").trim()}</Text></View>
+                  <View key={i} style={styles.bulletRow}>
+                    <Text style={styles.bullet}>•</Text>
+                    <Text style={[styles.bulletContent, styles.aiFont, isDark && { color: "#BBB" }, { fontSize }]}>
+                      {p.replace("•", "").trim()}
+                    </Text>
+                  </View>
                 ))}
               </View>
 
@@ -146,11 +154,15 @@ export default function DetailsScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.sliderContainer, isDark && { backgroundColor: "#1A1A1A", borderTopColor: "#333" }]}>
+      <BlurView
+        intensity={isDark ? 30 : 90}
+        tint={isDark ? "dark" : "light"}
+        style={[styles.sliderContainer, isDark && { borderTopColor: "#333" }]}
+      >
         <Text style={{ fontSize: 12, color: isDark ? "#AAA" : "#666" }}>A</Text>
         <Slider style={{ flex: 1, height: 40 }} minimumValue={14} maximumValue={26} step={2} value={fontSize} onValueChange={setFontSize} minimumTrackTintColor="#0047FF" thumbTintColor="#0047FF" />
         <Text style={{ fontSize: 22, color: isDark ? "#FFF" : "#000" }}>A</Text>
-      </View>
+      </BlurView>
 
       <ChatDrawer isVisible={showChat} onClose={() => setShowChat(false)} articleTitle={params.title as string} articleContent={(params.description as string) || (params.title as string)} />
     </SafeAreaView>
@@ -187,7 +199,12 @@ const styles = StyleSheet.create({
   chatBadgeText: { color: "white", fontSize: 11, fontWeight: "800" },
   bulletRow: { flexDirection: "row", marginBottom: 12 },
   bullet: { color: "#0047FF", fontSize: 20, marginRight: 10 },
-  bulletContent: { flex: 1, color: "#333", lineHeight: 22 },
+  bulletContent: { flex: 1, color: "#333", lineHeight: 26 },
+  aiFont: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '500',
+    letterSpacing: -0.3
+  },
   loadingContainer: { padding: 40, alignItems: "center" },
   loadingText: { marginTop: 15, color: "#8E8E93", fontWeight: "600" },
   impactBox: { backgroundColor: "#FFF9E6", padding: 20, borderRadius: 24, borderWidth: 1, borderColor: "#FFE58F", marginBottom: 25 },
